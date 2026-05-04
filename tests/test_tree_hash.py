@@ -14,11 +14,11 @@ class FakeValueHash:
 @pytest.mark.parametrize(
     ("hash_fn", "mix_name"),
     [
-        (tree_hash.hash_tensor_32, "murmur_mix32"),
-        (tree_hash.hash_tensor_64, "murmur_mix64"),
+        (tree_hash.tree_hash_32, "murmur_mix32"),
+        (tree_hash.tree_hash_64, "murmur_mix64"),
     ],
 )
-def test_hash_tensor_delegates_to_sum_and_murmur_mix(monkeypatch, hash_fn, mix_name):
+def test_tree_hash_delegates_to_sum_and_murmur_mix(monkeypatch, hash_fn, mix_name):
     calls = []
 
     def fake_sum(child_hashes):
@@ -41,19 +41,19 @@ def test_hash_tensor_delegates_to_sum_and_murmur_mix(monkeypatch, hash_fn, mix_n
     ]
 
 
-def test_hash_tensor_jit_signatures_expose_expected_arguments():
-    assert tree_hash.hash_tensor_32.arg_names == ["value_hash", "child_hashes", "seed"]
-    assert tree_hash.hash_tensor_64.arg_names == ["value_hash", "child_hashes", "seed"]
+def test_tree_hash_jit_signatures_expose_expected_arguments():
+    assert tree_hash.tree_hash_32.arg_names == ["value_hash", "child_hashes", "seed"]
+    assert tree_hash.tree_hash_64.arg_names == ["value_hash", "child_hashes", "seed"]
 
 
 @pytest.mark.parametrize(
     ("hash_fn", "mix_name"),
     [
-        (tree_hash.hash_tensor_32, "murmur_mix32"),
-        (tree_hash.hash_tensor_64, "murmur_mix64"),
+        (tree_hash.tree_hash_32, "murmur_mix32"),
+        (tree_hash.tree_hash_64, "murmur_mix64"),
     ],
 )
-def test_hash_tensor_is_invariant_to_child_hash_order(monkeypatch, hash_fn, mix_name):
+def test_tree_hash_is_invariant_to_child_hash_order(monkeypatch, hash_fn, mix_name):
     def fake_mix(key, seed):
         return (key, seed)
 

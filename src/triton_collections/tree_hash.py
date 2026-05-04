@@ -6,7 +6,7 @@ import triton.language as tl
 from triton_collections.murmur3 import murmur_mix32, murmur_mix64
 
 @triton.jit
-def hash_tensor_32(
+def tree_hash_32(
         value_hash: tl.tensor,
         child_hashes: tl.tensor,
         seed: tl.constexpr = tl.constexpr(42)
@@ -17,7 +17,7 @@ def hash_tensor_32(
     return murmur_mix32(h, seed)
 
 @triton.jit
-def hash_tensor_64(
+def tree_hash_64(
         value_hash: tl.tensor,
         child_hashes: tl.tensor,
         seed: tl.constexpr = tl.constexpr(42)
