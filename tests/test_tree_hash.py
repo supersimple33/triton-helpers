@@ -1,6 +1,8 @@
 import pytest
 
-import triton_collections.tree_hash as tree_hash
+import triton
+import triton_collections.hashing.tree_hash as tree_hash
+from triton_collections.hashing.murmur3 import murmur_mix32
 
 
 class FakeValueHash:

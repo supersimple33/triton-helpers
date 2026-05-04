@@ -3,7 +3,7 @@ import random
 import triton
 import triton.language as tl
 
-from triton_collections.murmur3 import murmur_mix32, murmur_mix64
+from triton_collections.hashing.murmur3 import murmur_mix32, murmur_mix64
 
 @triton.jit
 def tree_hash_32(
