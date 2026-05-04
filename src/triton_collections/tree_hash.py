@@ -5,8 +5,6 @@ import triton.language as tl
 
 from triton_collections.murmur3 import murmur_mix32, murmur_mix64
 
-SALTS = [random.randint(0, 2**32 - 1) for _ in range(128)]
-
 @triton.jit
 def hash_tensor_32(
         value_hash: tl.tensor,
