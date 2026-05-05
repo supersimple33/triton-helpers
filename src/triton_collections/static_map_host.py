@@ -74,7 +74,6 @@ class StaticMap:
 
     def clear(self) -> None:
         self._keys.zero_()
-        self._values.zero_()
 
     def insert(self, key_hashes: torch.Tensor, values: torch.Tensor) -> None:
         self._validate_kv_tensors(key_hashes, values)

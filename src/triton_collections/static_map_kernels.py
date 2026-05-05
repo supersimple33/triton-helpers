@@ -74,10 +74,11 @@ def insert_key_linear(
     for i in range(MAX_PROBE):
         idxs = (slots + i) % capacity
 
-        slot_keys = tl.load(keys_ptr + idxs, mask=active, other=empty_key)
-        hit = active & (slot_keys == empty_key)
+        prev = tl.atomic_cas(keys_ptr + idxs, empty_key, in_keys, mask=active)
+        hit = (prev == empty_key) & active # REVIEW: & active
+
         slot_indices = tl.where(hit, idxs, slot_indices)
-        active = active & ~hit & (slot_keys != in_keys)
+        active = active & ~hit & (prev != in_keys)
     inserted = valid & (~active)
 
     tl.store(out_inserted_ptr + offsets, inserted.to(out_inserted_ptr.dtype), mask=mask)
