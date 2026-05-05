@@ -82,6 +82,43 @@ def test_insert_skips_kernel_for_empty_input(monkeypatch):
     assert launcher.grids == []
 
 
+def test_insert_then_retrieve_round_trip(monkeypatch):
+    key_dtype = _supported_key_dtype()
+    smap = StaticMap(8, key_dtype=key_dtype, value_dtype=torch.int64, value_size=2)
+
+    def fake_insert_kernel(
+        keys,
+        in_keys,
+        out_slots,
+        out_inserted,
+        n_elements,
+        capacity,
+        empty_key,
+        MAX_PROBE,
+        BLOCK,
+    ):
+        assert n_elements == 3
+        assert capacity == smap.capacity
+        assert empty_key == smap.empty_key
+        out_slots.copy_(torch.tensor([1, 2, 3], dtype=in_keys.dtype))
+        out_inserted.copy_(torch.tensor([True, True, True], dtype=torch.bool))
+        keys[1] = in_keys[0]
+        keys[2] = in_keys[1]
+        keys[3] = in_keys[2]
+
+    launcher = FakeKernelLauncher(fake_insert_kernel)
+    monkeypatch.setattr(static_map_kernels, "insert_key_linear", launcher)
+
+    key_hashes = torch.tensor([1, 9, 17], dtype=key_dtype)
+    values = torch.tensor([[11, 12], [91, 92], [171, 172]], dtype=torch.int64)
+
+    _call_uncompiled(StaticMap.insert, smap, key_hashes, values)
+    result = _call_uncompiled(StaticMap.retrieve, smap, key_hashes)
+
+    assert launcher.grids == [(1,)]
+    assert torch.equal(result, values)
+
+
 @pytest.mark.xfail(reason="StaticMap.insert uses unsigned tensor indices for value writes")
 def test_insert_writes_values_only_for_inserted_slots(monkeypatch):
     key_dtype = _supported_key_dtype()
