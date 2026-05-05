@@ -47,7 +47,7 @@ class StaticMap:
         if value_size <= 0:
             raise ValueError("value_size must be positive")
 
-        if key_dtype not in (torch.uint32, torch.uint64):
+        if key_dtype not in (torch.uint32, torch.uint64, torch.int32, torch.int64):
             raise TypeError("key_dtype must be torch.uint32 or torch.uint64")
 
         self._empty_key = 0
@@ -78,8 +78,8 @@ class StaticMap:
     @torch.compile
     def insert(self, key_hashes: torch.Tensor, in_values: torch.Tensor) -> None:
         self._validate_kv_tensors(key_hashes, in_values)
-        if torch.any(key_hashes == self._empty_key):
-            raise ValueError("cannot insert empty key sentinel")
+        #if torch.any(key_hashes == self._empty_key): # TODO: safety checking?
+        #    raise ValueError("cannot insert empty key sentinel")
 
         n_elements = key_hashes.numel()
         if n_elements == 0:
