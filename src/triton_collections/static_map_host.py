@@ -96,6 +96,7 @@ class StaticMap:
             self._empty_key,
             MAX_PROBE=self._config.max_probe,
             BLOCK=self._config.block_size,
+            VALUE_SIZE=self._value_size, # type: ignore
         )
 
     def retrieve(self, key_hashes: torch.Tensor) -> torch.Tensor:
@@ -120,6 +121,7 @@ class StaticMap:
             self._empty_key,
             MAX_PROBE=self._config.max_probe,
             BLOCK=self._config.block_size,
+            VALUE_SIZE=self._value_size, # type: ignore
         )
 
         return result

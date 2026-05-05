@@ -72,6 +72,7 @@ def static_map_insert_or_assign(
     empty_key,
     MAX_PROBE: tl.constexpr,
     BLOCK: tl.constexpr,
+    VALUE_SIZE: tl.constexpr,
 ):
     """Inserts or assigns key-value pairs into the map."""
     pid = tl.program_id(0)
@@ -79,16 +80,17 @@ def static_map_insert_or_assign(
     mask = offsets < n_elements
 
     in_keys = tl.load(in_keys_ptr + offsets, mask=mask, other=empty_key)
-    in_values = tl.load(in_values_ptr + offsets, mask=mask, other=0)
     valid = mask & (in_keys != empty_key) # host should ensure that in_keys != empty_key
-
     slots = in_keys % capacity
 
     slot_indices, active = _reserve_slots_linear(keys_ptr, in_keys, slots, valid, capacity, empty_key, MAX_PROBE, BLOCK) # type: ignore
 
     tl.device_assert(tl.max(active) == 0, "static_map_insert_or_assign failed to reserve slots for all keys")
 
-    tl.store(values_ptr + slot_indices, in_values, mask=valid)
+    value_range = tl.arange(0, VALUE_SIZE)
+    in_values = tl.load(in_values_ptr + offsets[:, None] * VALUE_SIZE + value_range[None, :], mask=valid[:, None], other=0)
+
+    tl.store(values_ptr + slot_indices[:, None] * VALUE_SIZE + value_range[None, :], in_values, mask=valid[:, None])
 
 @triton.jit
 def static_map_retrieve(
@@ -102,6 +104,7 @@ def static_map_retrieve(
     empty_key,
     MAX_PROBE: tl.constexpr,
     BLOCK: tl.constexpr,
+    VALUE_SIZE: tl.constexpr,
 ):
     """Retrieves values for the given keys from the map."""
     pid = tl.program_id(0)
@@ -117,5 +120,6 @@ def static_map_retrieve(
 
     tl.store(out_found_ptr + offsets, found.to(out_found_ptr.dtype), mask=valid)
 
-    out_values = tl.load(values_ptr + slot_indices, mask=valid, other=0)
-    tl.store(out_values_ptr + offsets, out_values, mask=valid)
+    value_range = tl.arange(0, VALUE_SIZE)
+    values = tl.load(values_ptr + slot_indices[:, None] * VALUE_SIZE + value_range[None, :], mask=found[:, None], other=0)
+    tl.store(out_values_ptr + offsets[:, None] * VALUE_SIZE + value_range[None, :], values, mask=found[:, None])
