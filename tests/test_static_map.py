@@ -181,3 +181,31 @@ def test_clear_zeros_all_keys():
     smap.clear()
 
     assert torch.equal(smap._keys, torch.zeros_like(smap._keys))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA for Triton kernel execution")
+def test_insert_and_retrieve_round_trip_with_real_kernel_and_compile():
+    smap = StaticMap(8, key_dtype=torch.int64, value_dtype=torch.int64, value_size=2, device="cuda")
+
+    key_hashes = torch.tensor([1, 9, 17], dtype=torch.int64, device="cuda")
+    values = torch.tensor([[11, 12], [91, 92], [171, 172]], dtype=torch.int64, device="cuda")
+
+    smap.insert(key_hashes, values)
+    result = smap.retrieve(key_hashes)
+
+    assert torch.equal(result, values)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA for Triton kernel execution")
+def test_retrieve_returns_zero_rows_for_missing_keys_after_real_insert():
+    smap = StaticMap(8, key_dtype=torch.int64, value_dtype=torch.int64, value_size=2, device="cuda")
+
+    inserted_keys = torch.tensor([2, 10], dtype=torch.int64, device="cuda")
+    inserted_values = torch.tensor([[20, 21], [100, 101]], dtype=torch.int64, device="cuda")
+    query_keys = torch.tensor([10, 2, 18], dtype=torch.int64, device="cuda")
+
+    smap.insert(inserted_keys, inserted_values)
+    result = smap.retrieve(query_keys)
+
+    expected = torch.tensor([[100, 101], [20, 21], [0, 0]], dtype=torch.int64, device="cuda")
+    assert torch.equal(result, expected)
