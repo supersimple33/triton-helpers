@@ -106,12 +106,12 @@ class StaticMap:
 
 
     @torch.compile
-    def retrieve(self, key_hashes: torch.Tensor) -> torch.Tensor:
+    def retrieve(self, key_hashes: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         self._validate_key_tensor(key_hashes)
 
         n_elements = key_hashes.numel()
         if n_elements == 0:
-            return torch.empty((0, self._value_size), dtype=self._value_dtype, device=self._device)
+            return torch.empty((0, self._value_size), dtype=self._value_dtype, device=self._device), torch.empty((0,), dtype=torch.bool, device=self._device)
 
         final_slots = torch.empty_like(key_hashes)
         found = torch.zeros_like(key_hashes, dtype=torch.bool)
@@ -156,7 +156,7 @@ class StaticMap:
         default_values = torch.zeros_like(gathered_values)
         result = torch.where(found.unsqueeze(-1), gathered_values, default_values)
 
-        return result
+        return result, found
 
     def _validate_key_tensor(self, key_hashes: torch.Tensor) -> None:
         if key_hashes.dtype != self._key_dtype:

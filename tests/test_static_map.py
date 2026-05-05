@@ -113,11 +113,11 @@ def test_insert_then_retrieve_round_trip(monkeypatch):
     values = torch.tensor([[11, 12], [91, 92], [171, 172]], dtype=torch.int64)
 
     _call_uncompiled(StaticMap.insert, smap, key_hashes, values)
-    result = _call_uncompiled(StaticMap.retrieve, smap, key_hashes)
+    result, found = _call_uncompiled(StaticMap.retrieve, smap, key_hashes)
 
     assert launcher.grids == [(1,)]
     assert torch.equal(result, values)
-
+    assert torch.equal(found, torch.tensor([True, True, True], dtype=torch.bool, device=smap._device))
 
 @pytest.mark.xfail(reason="StaticMap.insert uses unsigned tensor indices for value writes")
 def test_insert_writes_values_only_for_inserted_slots(monkeypatch):
@@ -168,10 +168,12 @@ def test_retrieve_returns_values_for_found_keys():
     smap._values[2] = torch.tensor([90, 91], dtype=torch.int64)
 
     query = torch.tensor([9, 1], dtype=key_dtype)
-    result = _call_uncompiled(StaticMap.retrieve, smap, query)
+    result, found = _call_uncompiled(StaticMap.retrieve, smap, query)
 
-    expected = torch.tensor([[90, 91], [10, 11]], dtype=torch.int64)
-    assert torch.equal(result, expected)
+    expected_result = torch.tensor([[90, 91], [10, 11]], dtype=torch.int64)
+    expected_found = torch.tensor([True, True], dtype=torch.bool, device=smap._device)
+    assert torch.equal(result, expected_result)
+    assert torch.equal(found, expected_found)
 
 
 def test_clear_zeros_all_keys():
@@ -191,9 +193,10 @@ def test_insert_and_retrieve_round_trip_with_real_kernel_and_compile():
     values = torch.tensor([[11, 12], [91, 92], [171, 172]], dtype=torch.int64, device="cuda")
 
     smap.insert(key_hashes, values)
-    result = smap.retrieve(key_hashes)
+    result, found = smap.retrieve(key_hashes)
 
     assert torch.equal(result, values)
+    assert torch.equal(found, torch.tensor([True, True, True], device="cuda"))
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA for Triton kernel execution")
@@ -203,9 +206,12 @@ def test_retrieve_returns_zero_rows_for_missing_keys_after_real_insert():
     inserted_keys = torch.tensor([2, 10], dtype=torch.int64, device="cuda")
     inserted_values = torch.tensor([[20, 21], [100, 101]], dtype=torch.int64, device="cuda")
     query_keys = torch.tensor([10, 2, 18], dtype=torch.int64, device="cuda")
-    expected = torch.tensor([[100, 101], [20, 21], [0, 0]], dtype=torch.int64, device="cuda")
+
+    expected_result = torch.tensor([[100, 101], [20, 21], [0, 0]], dtype=torch.int64, device="cuda")
+    expected_found = torch.tensor([True, True, False], device="cuda")
 
     smap.insert(inserted_keys, inserted_values)
-    result = smap.retrieve(query_keys)
+    result, found = smap.retrieve(query_keys)
 
-    assert torch.equal(result, expected)
+    assert torch.equal(result, expected_result)
+    assert torch.equal(found, expected_found)
