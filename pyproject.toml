@@ -20,4 +20,5 @@ build-backend = "uv_build"
 dev = [
     "numpy>=2.2.6",
     "pytest>=9.0.3",
+    "pytest-benchmark>=5.2.3",
 ]
