@@ -33,7 +33,6 @@ class StaticMap:
         key_dtype: torch.dtype = torch.uint64,
         value_dtype: torch.dtype = torch.uint64,
         value_size: int = 1,
-        not_found_value: int | None = None,
         device: torch.device | str | None = None,
         config: StaticMapConfig | None = None,
     ) -> None:
@@ -51,12 +50,7 @@ class StaticMap:
         if key_dtype not in (torch.uint32, torch.uint64):
             raise TypeError("key_dtype must be torch.uint32 or torch.uint64")
 
-        if not_found_value is None:
-            not_found_value = 0
-
         self._empty_key = 0
-        self._empty_value = 0
-        self._not_found_value = int(not_found_value)
         self._value_size = int(value_size)
 
         self._keys = torch.zeros(
@@ -103,6 +97,32 @@ class StaticMap:
             MAX_PROBE=self._config.max_probe,
             BLOCK=self._config.block_size,
         )
+
+    def retrieve(self, key_hashes: torch.Tensor) -> torch.Tensor:
+        self._validate_key_tensor(key_hashes)
+
+        n_elements = key_hashes.numel()
+        if n_elements == 0:
+            return torch.empty((0, self._value_size), dtype=self._value_dtype, device=self._device)
+
+        result = torch.empty((n_elements, self._value_size), dtype=self._value_dtype, device=self._device)
+        found = torch.zeros(n_elements, dtype=torch.bool, device=self._device)
+
+        grid = (triton.cdiv(n_elements, self._config.block_size),)
+        static_map_kernels.static_map_retrieve[grid](
+            self._keys,
+            self._values,
+            key_hashes,
+            result,
+            found,
+            n_elements,
+            self._capacity,
+            self._empty_key,
+            MAX_PROBE=self._config.max_probe,
+            BLOCK=self._config.block_size,
+        )
+
+        return result
 
     def _validate_key_tensor(self, key_hashes: torch.Tensor) -> None:
         if key_hashes.dtype != self._key_dtype:
