@@ -73,6 +73,7 @@ def static_map_insert_or_assign(
     MAX_PROBE: tl.constexpr,
     BLOCK: tl.constexpr,
     VALUE_SIZE: tl.constexpr,
+    VALUE_BLOCK: tl.constexpr,
 ):
     """Inserts or assigns key-value pairs into the map."""
     pid = tl.program_id(0)
@@ -87,10 +88,17 @@ def static_map_insert_or_assign(
 
     tl.device_assert(tl.max(active) == 0, "static_map_insert_or_assign failed to reserve slots for all keys")
 
-    value_range = tl.arange(0, VALUE_SIZE)
-    in_values = tl.load(in_values_ptr + offsets[:, None] * VALUE_SIZE + value_range[None, :], mask=valid[:, None], other=0)
+    for v_offset in range(0, VALUE_SIZE, VALUE_BLOCK):
+        v_range = v_offset + tl.arange(0, VALUE_BLOCK)
 
-    tl.store(values_ptr + slot_indices[:, None] * VALUE_SIZE + value_range[None, :], in_values, mask=valid[:, None])
+        v_mask = v_range < VALUE_SIZE
+
+        chunk_mask = valid[:, None] & v_mask[None, :]
+
+        load_ptrs = in_values_ptr + offsets[:, None] * VALUE_SIZE + v_range[None, :]
+        in_values = tl.load(load_ptrs, mask=chunk_mask, other=0)
+        store_ptrs = values_ptr + slot_indices[:, None] * VALUE_SIZE + v_range[None, :]
+        tl.store(store_ptrs, in_values, mask=chunk_mask)
 
 @triton.jit
 def static_map_retrieve(
@@ -105,6 +113,7 @@ def static_map_retrieve(
     MAX_PROBE: tl.constexpr,
     BLOCK: tl.constexpr,
     VALUE_SIZE: tl.constexpr,
+    VALUE_BLOCK: tl.constexpr,
 ):
     """Retrieves values for the given keys from the map."""
     pid = tl.program_id(0)
@@ -120,6 +129,14 @@ def static_map_retrieve(
 
     tl.store(out_found_ptr + offsets, found.to(out_found_ptr.dtype), mask=valid)
 
-    value_range = tl.arange(0, VALUE_SIZE)
-    values = tl.load(values_ptr + slot_indices[:, None] * VALUE_SIZE + value_range[None, :], mask=found[:, None], other=0)
-    tl.store(out_values_ptr + offsets[:, None] * VALUE_SIZE + value_range[None, :], values, mask=found[:, None])
+    for v_offset in range(0, VALUE_SIZE, VALUE_BLOCK):
+        v_range = v_offset + tl.arange(0, VALUE_BLOCK)
+
+        v_mask = v_range < VALUE_SIZE
+
+        chunk_mask = valid[:, None] & found[:, None] & v_mask[None, :]
+
+        load_ptrs = values_ptr + slot_indices[:, None] * VALUE_SIZE + v_range[None, :]
+        in_values = tl.load(load_ptrs, mask=chunk_mask, other=0)
+        store_ptrs = out_values_ptr + offsets[:, None] * VALUE_SIZE + v_range[None, :]
+        tl.store(store_ptrs, in_values, mask=chunk_mask)
