@@ -203,9 +203,9 @@ def test_retrieve_returns_zero_rows_for_missing_keys_after_real_insert():
     inserted_keys = torch.tensor([2, 10], dtype=torch.int64, device="cuda")
     inserted_values = torch.tensor([[20, 21], [100, 101]], dtype=torch.int64, device="cuda")
     query_keys = torch.tensor([10, 2, 18], dtype=torch.int64, device="cuda")
+    expected = torch.tensor([[100, 101], [20, 21], [0, 0]], dtype=torch.int64, device="cuda")
 
     smap.insert(inserted_keys, inserted_values)
     result = smap.retrieve(query_keys)
 
-    expected = torch.tensor([[100, 101], [20, 21], [0, 0]], dtype=torch.int64, device="cuda")
     assert torch.equal(result, expected)

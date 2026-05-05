@@ -86,7 +86,7 @@ def insert_key_linear(
         active = active & ~hit & (prev != in_keys)
     inserted = valid & (~active)
 
-    tl.store(out_inserted_ptr + offsets, inserted.to(out_inserted_ptr.dtype), mask=mask)
+    tl.store(out_inserted_ptr + offsets, inserted.to(tl.int8), mask=mask)
     tl.store(out_slots_ptr + offsets, slot_indices, mask=mask)
 
 @triton.jit

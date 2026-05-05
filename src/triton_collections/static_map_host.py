@@ -86,7 +86,7 @@ class StaticMap:
             return
         
         slots = torch.empty_like(key_hashes)
-        inserted = torch.empty(n_elements, dtype=torch.bool, device=self._device)
+        inserted = torch.empty(n_elements, dtype=torch.int8, device=self._device)
 
         grid = (triton.cdiv(n_elements, self._config.block_size),)
         static_map_kernels.insert_key_linear[grid](
@@ -101,6 +101,7 @@ class StaticMap:
             BLOCK=self._config.block_size,
         )
 
+        inserted = inserted != 0
         self._values[slots[inserted]] = in_values[inserted]
 
 
