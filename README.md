@@ -1,3 +1,3 @@
 # Triton collections
 
-Based on [cuCollections](https://github.com/NVIDIA/cuCollections/tree/dev).
+I aim to implement a static_map for direct use in pytorch.

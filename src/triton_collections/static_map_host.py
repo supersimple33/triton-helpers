@@ -104,6 +104,7 @@ class StaticMap:
         self._values[slots[inserted]] = in_values[inserted]
 
 
+    @torch.compile
     def retrieve(self, key_hashes: torch.Tensor) -> torch.Tensor:
         self._validate_key_tensor(key_hashes)
 
@@ -111,23 +112,48 @@ class StaticMap:
         if n_elements == 0:
             return torch.empty((0, self._value_size), dtype=self._value_dtype, device=self._device)
 
-        result = torch.empty((n_elements, self._value_size), dtype=self._value_dtype, device=self._device)
-        found = torch.zeros(n_elements, dtype=torch.bool, device=self._device)
+        final_slots = torch.empty_like(key_hashes)
+        found = torch.zeros_like(key_hashes, dtype=torch.bool)
 
-        grid = (triton.cdiv(n_elements, self._config.block_size),)
-        static_map_kernels.static_map_retrieve[grid](
-            self._keys,
-            self._values,
-            key_hashes,
-            result,
-            found,
-            n_elements,
-            self._capacity,
-            self._empty_key,
-            MAX_PROBE=self._config.max_probe,
-            BLOCK=self._config.block_size,
-            VALUE_SIZE=self._value_size, # type: ignore
-        )
+        slots = key_hashes % self._capacity
+        valid = (key_hashes != self._empty_key)
+        active = valid.clone()
+
+        for i in range(self._config.max_probe):
+            idxs = (slots + i) % self._capacity
+
+            slot_keys = self._keys[idxs]
+
+            hit = active & (slot_keys == key_hashes)
+
+            final_slots = torch.where(hit, idxs, final_slots)
+            found |= hit
+
+            is_empty = (slot_keys == self._empty_key)
+            active = active & ~(hit | is_empty)
+
+        found &= valid
+
+        # trition alternative
+        #grid = (triton.cdiv(n_elements, self._config.block_size),)
+        #static_map_kernels.find_key_linear[grid](
+        #    self._keys,
+        #    key_hashes,
+        #    final_slots,
+        #    found,
+        #    n_elements,
+        #    self._capacity,
+        #    self._empty_key,
+        #    MAX_PROBE=self._config.max_probe,
+        #    BLOCK=self._config.block_size,
+        #)
+
+        #result = torch.empty((n_elements, self._value_size), dtype=self._value_dtype, device=self._device)
+        #result[found] = self._values[final_slots[found]]
+
+        gathered_values = self._values[final_slots]
+        default_values = torch.zeros_like(gathered_values)
+        result = torch.where(found.unsqueeze(-1), gathered_values, default_values)
 
         return result
 
