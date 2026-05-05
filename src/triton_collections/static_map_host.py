@@ -75,28 +75,34 @@ class StaticMap:
     def clear(self) -> None:
         self._keys.zero_()
 
-    def insert(self, key_hashes: torch.Tensor, values: torch.Tensor) -> None:
-        self._validate_kv_tensors(key_hashes, values)
+    @torch.compile
+    def insert(self, key_hashes: torch.Tensor, in_values: torch.Tensor) -> None:
+        self._validate_kv_tensors(key_hashes, in_values)
         if torch.any(key_hashes == self._empty_key):
             raise ValueError("cannot insert empty key sentinel")
 
         n_elements = key_hashes.numel()
         if n_elements == 0:
             return
+        
+        slots = torch.empty_like(key_hashes)
+        inserted = torch.empty(n_elements, dtype=torch.bool, device=self._device)
 
         grid = (triton.cdiv(n_elements, self._config.block_size),)
-        static_map_kernels.static_map_insert_or_assign[grid](
+        static_map_kernels.insert_key_linear[grid](
             self._keys,
-            self._values,
             key_hashes,
-            values,
+            slots,
+            inserted,
             n_elements,
             self._capacity,
             self._empty_key,
             MAX_PROBE=self._config.max_probe,
             BLOCK=self._config.block_size,
-            VALUE_SIZE=self._value_size, # type: ignore
         )
+
+        self._values[slots[inserted]] = in_values[inserted]
+
 
     def retrieve(self, key_hashes: torch.Tensor) -> torch.Tensor:
         self._validate_key_tensor(key_hashes)
@@ -141,11 +147,11 @@ class StaticMap:
             raise TypeError("values dtype does not match map value_dtype")
         if values.device != self._values.device:
             raise ValueError("values must be on the same device as the map")
-        if values.ndim != 1:
-            raise ValueError("values must be a flat 1D tensor")
-        if values.numel() % self._value_size != 0:
-            raise ValueError("values length must be a multiple of value_size")
-        if (values.numel() // self._value_size) != key_hashes.numel():
+        if values.ndim != 2:
+            raise ValueError("values must be a 2D tensor")
+        if values.shape[1] != self._value_size:
+            raise ValueError(f"values second dimension must match map value_size of {self._value_size}")
+        if values.shape[0] != key_hashes.numel():
             raise ValueError("key_hashes and values must have the same number of elements")
         if not values.is_contiguous():
             raise ValueError("values tensor must be contiguous")
