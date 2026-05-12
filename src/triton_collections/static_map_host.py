@@ -76,7 +76,7 @@ class StaticMap:
         self._keys.zero_()
 
     @torch.compile
-    def insert(self, key_hashes: torch.Tensor, in_values: torch.Tensor) -> None:
+    def insert(self, key_hashes: torch.Tensor, in_values: torch.Tensor, drop: bool = True) -> None:
         self._validate_kv_tensors(key_hashes, in_values)
         #if torch.any(key_hashes == self._empty_key): # TODO: safety checking?
         #    raise ValueError("cannot insert empty key sentinel")
@@ -102,7 +102,11 @@ class StaticMap:
         )
 
         inserted = inserted != 0
-        self._values[slots[inserted]] = in_values[inserted]
+        if drop:
+            self._values[slots[inserted]] = in_values[inserted]
+        else:
+            torch._assert(inserted.all(), "static_map insert failed to insert all keys - map may be at capacity")
+            self._values[slots] = in_values
 
 
     @torch.compile
